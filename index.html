@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume Skill Gap Analyzer</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;background:linear-gradient(180deg,#08111f,#060b14);color:#e6edf3;margin:0}
+    .container{width:min(1180px,92%);margin:28px auto}
+    .card{background:#111827;border:1px solid #243244;border-radius:22px;padding:24px;margin-bottom:22px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+    h1,h2,h3{margin-top:0}
+    label{display:block;margin-bottom:8px}
+    textarea,input[type=file],select{width:100%;margin-top:8px;margin-bottom:16px}
+    textarea,select,input[type=file]{padding:14px;border-radius:14px;border:1px solid #304256;background:#0a1220;color:#fff}
+    textarea{min-height:180px;resize:vertical}
+    .btn{background:#22c55e;color:white;border:none;padding:13px 18px;border-radius:12px;font-size:15px;cursor:pointer;text-decoration:none;display:inline-block;font-weight:700}
+    .btn:hover{transform:translateY(-1px)}
+    .btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+    .btn.secondary{background:#2563eb}
+    .btn.ghost{background:#0a1220;border:1px solid #304256}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+    .metric{background:#0a1220;border:1px solid #243244;border-radius:18px;padding:18px}
+    .metric .value{font-size:29px;font-weight:800;margin-top:10px}
+    .pill{display:inline-block;padding:9px 12px;border-radius:999px;margin:4px 6px 4px 0;background:#1d4ed833;border:1px solid #2563eb66}
+    .badge{display:inline-block;padding:8px 12px;border-radius:999px;font-weight:800;font-size:14px}
+    .badge.weak{background:#7f1d1d;color:#fecaca;border:1px solid #ef4444}
+    .badge.average{background:#713f12;color:#fef08a;border:1px solid #eab308}
+    .badge.strong{background:#1e3a8a;color:#bfdbfe;border:1px solid #3b82f6}
+    .badge.excellent{background:#14532d;color:#bbf7d0;border:1px solid #22c55e}
+    .error{color:#ff7b72;font-weight:bold}
+    .muted{color:#9da7b3}
+    ul{padding-left:20px}
+    .button-row{display:flex;gap:12px;flex-wrap:wrap}
+    .top-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
+    .progress-wrap{margin-top:8px}
+    .progress-label{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;color:#cbd5e1}
+    .progress{height:12px;background:#08101d;border-radius:999px;border:1px solid #243244;overflow:hidden}
+    .progress > span{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#22c55e);border-radius:999px}
+    .site-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:8px}
+    .site-card{background:#0a1220;border:1px solid #243244;border-radius:16px;padding:14px;text-align:center;text-decoration:none;color:#fff;font-weight:700}
+    .site-card:hover{border-color:#2563eb;transform:translateY(-2px)}
+    .highlight{background:linear-gradient(135deg,#1e3a8a33,#16a34a22);border:1px solid #31557a;border-radius:18px;padding:16px}
+    .inline-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .small-text{font-size:14px}
+    @media (max-width: 860px){.top-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Resume Skill Gap Analyzer</h1>
+      <p class="muted">Upload resume, choose role, open job site, paste job description, then analyze.</p>
+      <form method="post" enctype="multipart/form-data">
+        <div class="top-grid">
+          <div>
+            <label><strong>Upload Resume</strong></label>
+            <input type="file" name="resume_file" id="resumeFile" accept=".pdf,.docx,.txt">
+            {% if resume_filename %}
+              <p class="muted" id="uploadedFileName">Uploaded: {{ resume_filename }}</p>
+            {% endif %}
+
+            <div class="grid">
+              <div>
+                <label><strong>Select Job Role</strong></label>
+                <select name="job_role" id="job_role">
+                  <option value="" disabled {% if not selected_role %}selected{% endif %}>Select Job Role</option>
+                  {% for role in job_roles %}
+                    <option value="{{ role }}" {% if role == selected_role %}selected{% endif %}>{{ role }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label><strong>Select Job Site</strong></label>
+                <select name="job_site" id="job_site">
+                  {% for site in job_sites %}
+                    <option value="{{ site }}" {% if site == selected_site %}selected{% endif %}>{{ site }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <div class="button-row" style="margin-bottom:12px;">
+              <a class="btn secondary" id="openJobSiteBtn" href="{{ job_links[selected_site] }}">Open {{ selected_site }}</a>
+              <a class="btn ghost" id="openDesktopBtn" href="{{ url_for('open_job_site', role=selected_role, site=selected_site) }}">Open in New tab</a>
+              <button class="btn" type="submit">Analyze Resume</button>
+            </div>
+          </div>
+
+          <div class="highlight">
+            <h3 style="margin-bottom:12px;">Quick Open Job Sites</h3>
+            <div class="site-grid" id="siteGrid"></div>
+            <p class="muted" style="margin-top:12px;">These links change automatically based on the selected job role.</p>
+          </div>
+        </div>
+
+        <label><strong>Paste Job Description</strong></label>
+        <div class="button-row" style="margin-bottom:10px;">
+          <button class="btn ghost" type="button" id="fillSampleJdBtn" disabled>Select Job Role First</button>
+          <button class="btn ghost" type="button" id="clearJdBtn">Clear JD</button>
+        </div>
+        <textarea name="job_description" id="jobDescription" placeholder="Paste job description here...">{{ jd_text }}</textarea>
+      </form>
+      {% if error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
+    </div>
+
+    {% if result %}
+    <div class="card result-card">
+      <h2>Analysis Result</h2>
+      <div class="highlight" style="margin-bottom:18px;">
+        <strong>Selected Role:</strong> {{ result.selected_role }}<br>
+        <strong>Match Percentage:</strong> {{ result.match_percentage }}%<br>
+        <strong>Resume Strength Level:</strong>
+        <span class="badge {{ result.strength_class }}">{{ result.resume_strength_level }}</span><br>
+        <strong>Skill Match %:</strong> {{ result.skill_match }}%<br>
+        <strong>Role Relevance:</strong> {{ result.role_relevance }}%<br>
+        <strong>Missing Skills:</strong>
+        {% if result.missing_skills %}
+          {{ result.missing_skills|join(", ") }}
+        {% else %}
+          None
+        {% endif %}<br>
+        <strong>Status:</strong> {{ result.fit_message }}
+      </div>
+
+      <div class="button-row" style="margin-bottom:18px;">
+        <button class="btn ghost" type="button" id="downloadReportBtn">Download Report</button>
+      </div>
+      <textarea id="reportText" style="display:none;">{{ result.report_text }}</textarea>
+
+      <div class="grid">
+        <div class="metric"><strong>Match Percentage</strong><div class="value">{{ result.match_percentage }}%</div></div>
+        <div class="metric"><strong>Resume Strength Level</strong><div class="value" style="font-size:24px;"><span class="badge {{ result.strength_class }}">{{ result.resume_strength_level }}</span></div></div>
+        <div class="metric"><strong>Experience</strong><div class="value" style="font-size:22px;">{{ result.experience }}</div></div>
+        <div class="metric"><strong>Skill Match %</strong><div class="value">{{ result.skill_match }}%</div></div>
+        <div class="metric"><strong>Role Relevance</strong><div class="value">{{ result.role_relevance }}%</div></div>
+        <div class="metric"><strong>Resume Words</strong><div class="value">{{ result.word_count }}</div></div>
+      </div>
+
+      <div class="grid" style="margin-top:16px;">
+        <div class="metric">
+          <strong>Text Similarity</strong>
+          <div class="progress-wrap"><div class="progress-label"><span>Resume vs JD</span><span>{{ result.text_similarity }}%</span></div><div class="progress"><span style="width: {{ result.text_similarity }}%"></span></div></div>
+        </div>
+        <div class="metric">
+          <strong>Skill Match</strong>
+          <div class="progress-wrap"><div class="progress-label"><span>Matched Skills</span><span>{{ result.skill_match }}%</span></div><div class="progress"><span style="width: {{ result.skill_match }}%"></span></div></div>
+        </div>
+        <div class="metric">
+          <strong>Keyword Score</strong>
+          <div class="progress-wrap"><div class="progress-label"><span>Important Keywords</span><span>{{ result.keyword_score }}%</span></div><div class="progress"><span style="width: {{ result.keyword_score }}%"></span></div></div>
+        </div>
+        <div class="metric">
+          <strong>Role Relevance</strong>
+          <div class="progress-wrap"><div class="progress-label"><span>Selected Role</span><span>{{ result.role_relevance }}%</span></div><div class="progress"><span style="width: {{ result.role_relevance }}%"></span></div></div>
+        </div>
+        <div class="metric">
+          <strong>Resume Sections</strong>
+          <div class="progress-wrap"><div class="progress-label"><span>Detected Sections</span><span>{{ result.section_score }}%</span></div><div class="progress"><span style="width: {{ result.section_score }}%"></span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card result-card">
+      <div class="grid">
+        <div>
+          <h3>Matched Skills</h3>
+          {% if result.matched_skills %}
+            {% for skill in result.matched_skills %}<span class="pill">{{ skill }}</span>{% endfor %}
+          {% else %}
+            <p class="muted">No matched skills found.</p>
+          {% endif %}
+        </div>
+        <div>
+          <h3>Missing Skills</h3>
+          {% if result.missing_skills %}
+            {% for skill in result.missing_skills %}<span class="pill">{{ skill }}</span>{% endfor %}
+          {% else %}
+            <p class="muted">No missing skills found.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card result-card">
+      <div class="grid">
+        <div>
+          <h3>Priority Missing Skills</h3>
+          {% if result.priority_missing_skills %}
+            {% for skill in result.priority_missing_skills %}<span class="pill">{{ skill }}</span>{% endfor %}
+          {% else %}
+            <p class="muted">No priority missing skills found.</p>
+          {% endif %}
+        </div>
+        <div>
+          <h3>JD Keywords To Add</h3>
+          {% if result.keyword_suggestions %}
+            {% for keyword in result.keyword_suggestions %}<span class="pill">{{ keyword }}</span>{% endfor %}
+          {% else %}
+            <p class="muted">No extra keyword suggestions found.</p>
+          {% endif %}
+        </div>
+        <div>
+          <h3>Detected Resume Sections</h3>
+          {% if result.sections_found %}
+            <div class="inline-list">
+              {% for section in result.sections_found %}<span class="pill">{{ section }}</span>{% endfor %}
+            </div>
+          {% else %}
+            <p class="muted">No standard sections detected.</p>
+          {% endif %}
+          <p class="muted small-text">Common sections checked: summary, skills, experience, education, projects, certifications.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card result-card">
+      <div class="grid">
+        <div>
+          <h3>Improvement Tips</h3>
+          <ul>
+            {% for tip in result.tips %}<li>{{ tip }}</li>{% endfor %}
+          </ul>
+        </div>
+        <div>
+          <h3>Recommended Jobs</h3>
+          <ul>
+            {% for job in result.recommended_jobs %}<li>{{ job }}</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card result-card">
+      <h3>Resume Preview</h3>
+      <p class="muted" style="white-space: pre-wrap;">{{ result.resume_preview }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    const roleSelect = document.getElementById('job_role');
+    const siteSelect = document.getElementById('job_site');
+    const openBtn = document.getElementById('openJobSiteBtn');
+    const openDesktopBtn = document.getElementById('openDesktopBtn');
+    const siteGrid = document.getElementById('siteGrid');
+    const jobDescription = document.getElementById('jobDescription');
+    const fillSampleJdBtn = document.getElementById('fillSampleJdBtn');
+    const clearJdBtn = document.getElementById('clearJdBtn');
+    const resumeFile = document.getElementById('resumeFile');
+    const uploadedFileName = document.getElementById('uploadedFileName');
+    const resultCards = document.querySelectorAll('.result-card');
+
+    function buildSampleJobDescription(role) {
+      if (!role) {
+        return '';
+      }
+
+      if (['Teacher', 'English Teacher', 'Online Tutor', 'Teaching Assistant'].includes(role)) {
+        return `PGT English Teacher
+
+Company: Shraddha Childrens Academy
+Location: Chennai
+Experience Required: 0-5 years
+Job Type: Full Time
+Qualification: PGT English, postgraduate degree in English or related subject
+
+Required Skills:
+- Teaching English
+- PGT / TGT teaching
+- Tutoring
+- Classroom teaching
+- Communication skills
+- Lesson planning
+- Grammar and spoken English
+- Student mentoring
+
+Job Summary:
+The role requires an English teacher who can teach students, plan lessons, explain grammar and literature concepts, support classroom learning, and guide students through academic improvement. The candidate should have good communication skills and subject knowledge in English.`;
+      }
+
+      if (role === 'Fitness') {
+        return `Fitness Trainer
+
+Company: Health and Wellness Center
+Location: Bengaluru
+Experience Required: 0-5 years
+Job Type: Full Time
+Qualification: Fitness certification, sports science, physical education, or relevant training experience
+
+Required Skills:
+- Personal training
+- Strength training
+- Weight training
+- Cardio and endurance training
+- Workout planning
+- Client assessment
+- Nutrition and weight management
+- Injury prevention
+- Group fitness classes
+- CPR or first aid
+
+Job Summary:
+The role requires a fitness professional who can assess clients, create safe workout plans, coach exercise technique, track progress, guide basic nutrition habits, and motivate members to reach health and fitness goals.`;
+      }
+
+      return `${role}
+
+Job Type: Full Time
+Experience Required: 0-5 years
+
+Required Skills:
+- Communication skills
+- Problem solving
+- Teamwork
+- Role-specific technical skills
+- Time management
+
+Job Summary:
+The candidate should have relevant knowledge for the ${role} role, understand the job requirements, communicate clearly, complete assigned responsibilities, and show practical experience through projects, internships, training, or previous work.`;
+    }
+
+    function updateSampleJdButton() {
+      if (!fillSampleJdBtn) {
+        return;
+      }
+      const role = roleSelect.value;
+      fillSampleJdBtn.disabled = !role;
+      fillSampleJdBtn.textContent = role ? `Use Sample JD for ${role}` : 'Select Job Role First';
+    }
+
+    function buildLinks(role) {
+      const encoded = encodeURIComponent(role || '');
+      const slug = (role || '').trim().toLowerCase().replace(/\s+/g, '-');
+      return {
+        'LinkedIn': `https://www.linkedin.com/jobs/search/?keywords=${encoded}`,
+        'Naukri': slug ? `https://www.naukri.com/${slug}-jobs` : 'https://www.naukri.com/',
+        'Indeed': `https://in.indeed.com/jobs?q=${encoded}`,
+        'Glassdoor': `https://www.glassdoor.com/Job/jobs.htm?sc.keyword=${encoded}`
+      };
+    }
+
+    function renderSiteCards(role) {
+      const links = buildLinks(role);
+      siteGrid.innerHTML = Object.entries(links).map(([site, href]) => {
+        const label = role || 'Select role first';
+        return `<a class="site-card" href="${href}">${site}<br><span style="font-weight:400;font-size:12px;color:#9da7b3">${label}</span></a>`;
+      }).join('');
+    }
+
+    function updateOpenLink() {
+      const role = roleSelect.value;
+      const site = siteSelect.value;
+      const links = buildLinks(role);
+      openBtn.href = links[site] || '#';
+      openBtn.textContent = role ? `Open ${site} for ${role}` : `Open ${site}`;
+      openDesktopBtn.href = `/open-job-site?role=${encodeURIComponent(role)}&site=${encodeURIComponent(site)}`;
+      renderSiteCards(role);
+      updateSampleJdButton();
+    }
+
+    roleSelect.addEventListener('change', updateOpenLink);
+    siteSelect.addEventListener('change', updateOpenLink);
+    updateOpenLink();
+
+    if (fillSampleJdBtn && jobDescription) {
+      fillSampleJdBtn.addEventListener('click', () => {
+        jobDescription.value = buildSampleJobDescription(roleSelect.value);
+        jobDescription.focus();
+      });
+    }
+
+    if (clearJdBtn && jobDescription) {
+      clearJdBtn.addEventListener('click', () => {
+        jobDescription.value = '';
+        if (resumeFile && resumeFile.files.length === 0 && uploadedFileName) {
+          uploadedFileName.remove();
+        }
+        resultCards.forEach((card) => {
+          card.style.display = 'none';
+        });
+        jobDescription.focus();
+      });
+    }
+
+    if (resumeFile && uploadedFileName) {
+      resumeFile.addEventListener('change', () => {
+        if (resumeFile.files.length === 0) {
+          uploadedFileName.remove();
+          return;
+        }
+        uploadedFileName.textContent = `Uploaded: ${resumeFile.files[0].name}`;
+      });
+    }
+
+    const downloadReportBtn = document.getElementById('downloadReportBtn');
+    const reportText = document.getElementById('reportText');
+    if (downloadReportBtn && reportText) {
+      downloadReportBtn.addEventListener('click', () => {
+        const blob = new Blob([reportText.value], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'resume_analysis_report.txt';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      });
+    }
+  </script>
+</body>
+</html>

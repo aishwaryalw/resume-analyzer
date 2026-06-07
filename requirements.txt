@@ -1,0 +1,6 @@
+Flask
+scikit-learn
+pandas
+PyPDF2
+python-docx
+rapidfuzz
